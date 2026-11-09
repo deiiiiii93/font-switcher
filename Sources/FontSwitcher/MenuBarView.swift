@@ -276,6 +276,9 @@ struct MenuBarView: View {
     }
 
     private func openMain() {
+        // The menu-bar panel is key while its button is being clicked. Close it
+        // before opening the main window, which will become the new key window.
+        NSApp.keyWindow?.close()
         openWindow(id: "main")
         NSApp.setActivationPolicy(.regular)
         NSApp.activate()
