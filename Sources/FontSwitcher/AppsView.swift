@@ -10,6 +10,7 @@ struct AppsView: View {
                 PageHeading(title: "Made for your workspace", subtitle: "Choose which editors and terminals receive font changes.")
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 290), spacing: 16)], spacing: 16) {
                     ForEach(TargetID.allCases) { target in AppSection(target: target) }
+                    ClaudeCodeSection()
                 }
                 Label("Only font settings change. A backup is saved before every switch.", systemImage: "checkmark.shield")
                     .font(.callout).foregroundStyle(.secondary)
@@ -25,6 +26,30 @@ struct AppsView: View {
             }
         }
         .task { await model.refreshTargets() }
+    }
+}
+
+private struct ClaudeCodeSection: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(spacing: 12) {
+                SymbolTile(symbol: "terminal")
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Claude Code").font(.headline)
+                    Label("Uses your terminal's font", systemImage: "info.circle")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
+            }
+            Divider().opacity(0.5)
+            Text("For Claude Code in a terminal, enable that terminal above to change its font. The Claude desktop Code tab does not expose a supported custom code font setting.")
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, minHeight: 200, alignment: .topLeading)
+        .glassCard()
     }
 }
 

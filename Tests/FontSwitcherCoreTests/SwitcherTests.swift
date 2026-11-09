@@ -21,6 +21,38 @@ struct Fixture {
     static let herdr = "{\n  \"zoom\": 1,\n  \"font\": \"Berkeley Mono\",\n  \"font_size\": 13\n}"
     static let kitty = "# font_family Old\n# BEGIN_KITTY_FONTS\nfont_family      family=\"Zed Mono\"\n# END_KITTY_FONTS"
     static let warp = "[appearance.text]\nai_font_name = \"Sono\"\nfont_name = \"Berkeley Mono Variable\"\nfont_size = 14.0\n"
+    static let codex = """
+    model = "example"
+    [desktop]
+    appearanceTheme = "dark"
+    codeFontSize = 14
+    [desktop.appearanceLightChromeTheme]
+    accent = "#123456"
+    contrast = 40
+    ink = "#123456"
+    opaqueWindows = false
+    surface = "#123456"
+    [desktop.appearanceLightChromeTheme.fonts]
+    code = "Light Mono"
+    ui = "UI Font"
+    [desktop.appearanceLightChromeTheme.semanticColors]
+    diffAdded = "#123456"
+    diffRemoved = "#123456"
+    skill = "#123456"
+    [desktop.appearanceDarkChromeTheme]
+    accent = "#123456"
+    contrast = 40
+    ink = "#123456"
+    opaqueWindows = false
+    surface = "#123456"
+    [desktop.appearanceDarkChromeTheme.fonts]
+    code = "Dark Mono"
+    ui = "Other UI Font"
+    [desktop.appearanceDarkChromeTheme.semanticColors]
+    diffAdded = "#123456"
+    diffRemoved = "#123456"
+    skill = "#123456"
+    """
 
     init(write: Bool = true) throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("fs-test-\(UUID().uuidString)")
@@ -29,7 +61,7 @@ struct Fixture {
         try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
         if write {
             for (id, text) in [(TargetID.vscode, Self.vscode), (.cursor, Self.cursor), (.ghostty, Self.ghostty),
-                               (.herdr, Self.herdr), (.kitty, Self.kitty), (.warp, Self.warp)] {
+                               (.herdr, Self.herdr), (.kitty, Self.kitty), (.warp, Self.warp), (.codex, Self.codex)] {
                 try put(text, for: id)
             }
         }
@@ -66,6 +98,11 @@ func all(_ c: FontChoice) -> [TargetID: FontChoice] { Dictionary(uniqueKeysWithV
         #expect(try f.read(.herdr) == "{\n  \"zoom\": 1,\n  \"font\": \"Berkeley Mono\",\n  \"font_size\": 15\n}")
         #expect(try f.read(.kitty) == "# font_family Old\n# BEGIN_KITTY_FONTS\nfont_family      family=\"Berkeley Mono\"\n# END_KITTY_FONTS\nfont_size 15\n")
         #expect(try f.read(.warp) == "[appearance.text]\nai_font_name = \"Sono\"\nfont_name = \"Berkeley Mono\"\nfont_size = 15.0\n")
+        let codex = try f.read(.codex)
+        #expect(codex.contains("codeFontSize = 15\n"))
+        #expect(codex.components(separatedBy: "code = \"Berkeley Mono\"").count == 3)
+        #expect(codex.contains("ui = \"UI Font\""))
+        #expect(codex.contains("ui = \"Other UI Font\""))
         #expect(f.batchCount() == 1)
     }
 
@@ -74,6 +111,43 @@ func all(_ c: FontChoice) -> [TargetID: FontChoice] { Dictionary(uniqueKeysWithV
         _ = f.switcher().apply(all(FontChoice(family: "Zed Mono", size: nil)))
         #expect(try f.read(.ghostty) == "theme = dark\nfont-family = Zed Mono")
         #expect(try f.read(.warp).contains("font_size = 14.0"))
+        #expect(try f.read(.codex).contains("codeFontSize = 14"))
+    }
+
+    @Test func codexReadAndUndoPreserveOtherSettings() throws {
+        let f = try Fixture()
+        let s = f.switcher()
+        #expect(s.currentFont(for: .codex) == FontChoice(family: "Dark Mono", size: 14))
+        _ = s.apply([.codex: FontChoice(family: "New Mono", size: 15)])
+        #expect(s.currentFont(for: .codex) == FontChoice(family: "New Mono", size: 15))
+        _ = try s.undoLast()
+        #expect(try f.read(.codex) == Fixture.codex)
+    }
+
+    @Test func codexRejectsInlineOrDottedAppearanceWithoutWriting() throws {
+        let f = try Fixture()
+        for config in ["[desktop]\nappearanceDarkChromeTheme = { fonts = { code = \"Old\" } }\n",
+                       "[desktop]\nappearanceDarkChromeTheme.fonts.code = \"Old\"\n"] {
+            try f.put(config, for: .codex)
+            let result = f.switcher().apply([.codex: FontChoice(family: "New", size: 14)])
+            guard case .failed = result.first?.outcome else { Issue.record("expected failure"); continue }
+            #expect(try f.read(.codex) == config)
+        }
+    }
+
+    @Test func codexRejectsMissingThemeAndInvalidSize() throws {
+        let f = try Fixture()
+        let s = f.switcher()
+        try f.put("[desktop]\ncodeFontSize = 14\n", for: .codex)
+        guard case .failed = s.apply([.codex: FontChoice(family: "New", size: nil)]).first?.outcome else {
+            Issue.record("missing themes must fail"); return
+        }
+        #expect(try f.read(.codex) == "[desktop]\ncodeFontSize = 14\n")
+        try f.put(Fixture.codex, for: .codex)
+        guard case .failed = s.apply([.codex: FontChoice(family: "New", size: 25)]).first?.outcome else {
+            Issue.record("unsupported size must fail"); return
+        }
+        #expect(try f.read(.codex) == Fixture.codex)
     }
 
     @Test func targetsAbsentFromChoicesUntouched() throws {

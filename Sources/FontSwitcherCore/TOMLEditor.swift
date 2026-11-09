@@ -3,6 +3,7 @@ import Foundation
 public enum TOMLScalar: Equatable, Sendable {
     case string(String)
     case float(Double)
+    case number(Double)
 }
 
 public enum TOMLError: Error, Equatable, Sendable {
@@ -75,6 +76,7 @@ public enum TOMLEditor {
     static func encode(_ v: TOMLScalar) -> String {
         switch v {
         case .float(let d): return formatFloat(d)
+        case .number(let d): return JSONCEditor.formatNumber(d)
         case .string(let s):
             var out = "\""
             for ch in s.unicodeScalars {

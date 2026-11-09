@@ -57,12 +57,15 @@ public struct BackupStore: Sendable {
         f.dateFormat = "yyyyMMdd-HHmmss-SSS"
         let url = directory.appendingPathComponent("\(f.string(from: Date()))-\(seq)")
         try fm.createDirectory(at: url, withIntermediateDirectories: true)
+        try fm.setAttributes([.posixPermissions: 0o700], ofItemAtPath: url.path)
         return Pending(sequence: seq, url: url)
     }
 
     func stash(_ data: Data, for target: TargetID, in batch: Pending) throws -> String {
         let name = "\(target.rawValue).bak"
-        try data.write(to: batch.url.appendingPathComponent(name))
+        let url = batch.url.appendingPathComponent(name)
+        try data.write(to: url)
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
         return name
     }
 

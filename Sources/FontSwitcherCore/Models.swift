@@ -1,7 +1,7 @@
 import Foundation
 
 public enum TargetID: String, Codable, CaseIterable, Sendable, Identifiable, CodingKeyRepresentable {
-    case vscode, cursor, ghostty, herdr, kitty, warp
+    case vscode, cursor, ghostty, herdr, kitty, warp, codex
 
     public var id: String { rawValue }
 
@@ -13,6 +13,7 @@ public enum TargetID: String, Codable, CaseIterable, Sendable, Identifiable, Cod
         case .herdr: "Herdr"
         case .kitty: "kitty"
         case .warp: "Warp"
+        case .codex: "Codex"
         }
     }
 

@@ -17,6 +17,7 @@ The current interface uses a quiet native macOS layout: a grouped sidebar, searc
   | Herdr | `~/.config/herdr-app/settings.json` | `font`, `font_size` |
   | kitty | `~/.config/kitty/kitty.conf` | `font_family`, `font_size` |
   | Warp | `~/.warp/settings.toml` | `[appearance.text]` `font_name`, `font_size` |
+  | Codex desktop | `~/.codex/config.toml` | Code font in light and dark themes, `desktop.codeFontSize` |
 
 - **Font management**: browse installed families (All / Monospaced / Favorites), live code preview, star favorites, install `.ttf/.otf/.ttc/.otc` by drag-and-drop or picker into `~/Library/Fonts`, and remove user-installed fonts (moved to Trash).
 - **Appearance**: choose System, Light, or Dark in the sidebar. The choice applies to the window and menu bar panel and is remembered between launches.
@@ -37,6 +38,7 @@ The current interface uses a quiet native macOS layout: a grouped sidebar, searc
 - VS Code, Cursor, Herdr and Warp watch their settings files and update live.
 - kitty (`SIGUSR1`) and Ghostty (`SIGUSR2`) are signalled to reload if running. Ghostty applies font family changes to **new windows and tabs**.
 - Herdr's `font_size` is in px at zoom 1, and a Herdr layout's own font overrides `settings.json`.
+- Codex desktop may need a restart to load changes. Set up both appearance themes in Codex first; font sizes must be 8–24 pt. Codex CLI and Claude Code CLI use their terminal's font; enable the terminal to change it. Claude desktop's Code tab does not expose a supported custom code font setting.
 
 ## Build & install
 

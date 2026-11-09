@@ -7,6 +7,7 @@ public struct TargetSpec: Sendable {
         case ghostty
         case kitty
         case toml(table: String, familyKey: String, sizeKey: String)
+        case codex
     }
 
     public let id: TargetID
@@ -58,6 +59,10 @@ public struct TargetSpec: Sendable {
                        relativePaths: [".warp/settings.toml"],
                        format: .toml(table: "appearance.text", familyKey: "font_name", sizeKey: "font_size"),
                        reloadSignal: nil, note: nil)
+        case .codex:
+            TargetSpec(id: id, bundleID: "com.openai.codex",
+                       relativePaths: [".codex/config.toml"], format: .codex, reloadSignal: nil,
+                       note: "Configure both appearance themes in Codex first. Changes the desktop code font (8–24 pt); restart Codex to load changes. The CLI uses its terminal's font.")
         }
     }
 
@@ -104,12 +109,64 @@ public struct TargetSpec: Sendable {
         case let .toml(table, familyKey, sizeKey):
             if let family = choice.family { out = try TOMLEditor.set(familyKey, to: .string(family), inTable: table, in: out) }
             if let size = choice.size { out = try TOMLEditor.set(sizeKey, to: .float(size), inTable: table, in: out) }
+        case .codex:
+            try Self.checkCodexTables(text)
+            if let family = choice.family {
+                try Self.checkCodexThemes(text)
+                for theme in ["Light", "Dark"] {
+                    out = try TOMLEditor.set("code", to: .string(family), inTable: "desktop.appearance\(theme)ChromeTheme.fonts", in: out)
+                }
+            }
+            if let size = choice.size {
+                guard size.isFinite, (8...24).contains(size) else {
+                    throw TOMLError.malformed(line: 0, reason: "Codex code font size must be between 8 and 24")
+                }
+                out = try TOMLEditor.set("codeFontSize", to: .number(size), inTable: "desktop", in: out)
+            }
         }
         return out
     }
 
     static func hasControlCharacters(_ s: String) -> Bool {
         s.unicodeScalars.contains { $0.value < 0x20 || (0x7F...0x9F).contains($0.value) || $0 == "\u{2028}" || $0 == "\u{2029}" }
+    }
+
+    // Adding nested tables beneath an inline or dotted value would create invalid TOML.
+    // Refuse these representations rather than rewriting unrelated Codex configuration.
+    private static func checkCodexTables(_ text: String) throws {
+        let lines = text.components(separatedBy: "\n")
+        let parents: [(String, [String])] = [
+            ("", ["desktop"]),
+            ("desktop", ["appearanceLightChromeTheme", "appearanceDarkChromeTheme"]),
+            ("desktop.appearanceLightChromeTheme", ["fonts"]),
+            ("desktop.appearanceDarkChromeTheme", ["fonts"])
+        ]
+        for (table, children) in parents {
+            let scanned = try TOMLEditor.scan(lines, table: table)
+            let keys = Set(scanned.entries.keys).union(scanned.unsupported)
+            if children.contains(where: { child in keys.contains(where: { $0 == child || $0.hasPrefix(child + ".") }) }) {
+                throw TOMLError.malformed(line: 0, reason: "Codex appearance uses inline or dotted settings; edit its font in Codex instead")
+            }
+        }
+    }
+
+    private static func checkCodexThemes(_ text: String) throws {
+        let lines = text.components(separatedBy: "\n")
+        for theme in ["Light", "Dark"] {
+            let base = "desktop.appearance\(theme)ChromeTheme"
+            let settings = try TOMLEditor.scan(lines, table: base)
+            let fonts = try TOMLEditor.scan(lines, table: base + ".fonts")
+            let colors = try TOMLEditor.scan(lines, table: base + ".semanticColors")
+            let face = try TOMLEditor.scan(lines, table: base + ".fonts.codeFace")
+            let required = ["accent", "contrast", "ink", "opaqueWindows", "surface"]
+            guard required.allSatisfy({ settings.entries[$0] != nil }),
+                  fonts.entries["ui"] != nil,
+                  ["diffAdded", "diffRemoved", "skill"].allSatisfy({ colors.entries[$0] != nil }),
+                  face.headerLine == nil, fonts.entries["codeFace"] == nil,
+                  !fonts.unsupported.contains("codeFace") else {
+                throw TOMLError.malformed(line: 0, reason: "Configure both Codex appearance themes first; custom code faces must be cleared in Codex")
+            }
+        }
     }
 
     /// Reads the primary family and size currently configured.
@@ -132,6 +189,12 @@ public struct TargetSpec: Sendable {
         case let .toml(table, familyKey, sizeKey):
             return FontChoice(family: TOMLEditor.value(familyKey, inTable: table, in: text),
                               size: TOMLEditor.value(sizeKey, inTable: table, in: text).flatMap(Double.init))
+        case .codex:
+            let light = TOMLEditor.value("code", inTable: "desktop.appearanceLightChromeTheme.fonts", in: text)
+            let dark = TOMLEditor.value("code", inTable: "desktop.appearanceDarkChromeTheme.fonts", in: text)
+            let theme = TOMLEditor.value("appearanceTheme", inTable: "desktop", in: text)
+            let family = theme == "light" ? light : theme == "dark" ? dark : (light == dark ? light : nil)
+            return FontChoice(family: family, size: TOMLEditor.value("codeFontSize", inTable: "desktop", in: text).flatMap(Double.init))
         }
     }
 }
